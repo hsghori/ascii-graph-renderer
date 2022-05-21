@@ -1,6 +1,6 @@
 import assert from "assert";
 import produce from "immer";
-import { Edge, MarkerType, Node } from "react-flow-renderer";
+import { Edge, MarkerType, Node, XYPosition } from "react-flow-renderer";
 import * as uuid from "uuid";
 
 type NodeWithName = Node<{ label: string }>;
@@ -10,28 +10,18 @@ export interface Graph {
   edges: Array<Edge>;
 }
 
-interface Location {
-  row: number;
-  column: number;
-}
-
-interface NodeAndLocation {
-  node: NodeWithName;
-  location: Location;
-}
-
 function getCharacter(
   asciiGraphLines: Array<string>,
-  location: Location
+  location: XYPosition
 ): string {
-  const line = asciiGraphLines[location.row];
+  const line = asciiGraphLines[location.y];
   if (line == null) {
     return " ";
   }
-  if (location.column >= line.length) {
+  if (location.x >= line.length) {
     return " ";
   }
-  return line.charAt(location.column);
+  return line.charAt(location.x);
 }
 
 function findStart(line: string, index: number): number {
@@ -46,37 +36,34 @@ function findStart(line: string, index: number): number {
 
 function handleEdge({
   asciiGraphLines,
-  nodeAndLocations,
+  nodes,
   startLocation,
   expectedChar,
   iterateLocation,
 }: {
   asciiGraphLines: Array<string>;
-  nodeAndLocations: Array<NodeAndLocation>;
-  startLocation: Location;
+  nodes: Array<NodeWithName>;
+  startLocation: XYPosition;
   expectedChar: string;
-  iterateLocation: (location: Location) => Location;
-}): NodeAndLocation | null {
+  iterateLocation: (location: XYPosition) => XYPosition;
+}): NodeWithName | null {
   let currLocation = iterateLocation(startLocation);
+  console.log(currLocation);
   const maxCol = asciiGraphLines
     .map((line) => line.length)
     .reduce((prev, curr) => Math.max(prev, curr), 0);
   let foundNode = false;
   while (
     !foundNode &&
-    currLocation.column < maxCol &&
-    currLocation.row < asciiGraphLines.length
+    currLocation.x < maxCol &&
+    currLocation.y < asciiGraphLines.length
   ) {
     const currChar = getCharacter(asciiGraphLines, currLocation);
-    console.log({ currChar, code: currChar[0].charCodeAt(0) });
     if (currChar.match(/[\*\w\(\)]/)) {
-      const column = findStart(
-        asciiGraphLines[currLocation.row],
-        currLocation.column
-      );
+      const column = findStart(asciiGraphLines[currLocation.y], currLocation.x);
       currLocation = {
         ...currLocation,
-        column,
+        x: column,
       };
       foundNode = true;
       break;
@@ -87,38 +74,37 @@ function handleEdge({
   }
 
   return (
-    nodeAndLocations.find(
-      ({ location }) =>
-        currLocation.column === location.column &&
-        currLocation.row === location.row
+    nodes.find(
+      ({ position }) =>
+        currLocation.x === position.x && currLocation.y === position.y
     ) ?? null
   );
 }
 
 function getInitialLocation({
   asciiGraphLines,
-  startNodeAndLocation,
+  startNode,
   rowOffset,
   targetCharacter,
 }: {
   asciiGraphLines: Array<string>;
-  startNodeAndLocation: NodeAndLocation;
+  startNode: NodeWithName;
   rowOffset: number;
   targetCharacter: string;
-}): Location {
-  const startLocation = startNodeAndLocation.location;
+}): XYPosition {
+  const startLocation = startNode.position;
   return produce(startLocation, (draftLocation) => {
     for (
-      let i = draftLocation.column;
-      i < startNodeAndLocation.node.data.label.length + startLocation.column;
+      let i = draftLocation.x;
+      i < startNode.data.label.length + startLocation.x;
       i++
     ) {
       const currChar = getCharacter(asciiGraphLines, {
-        row: draftLocation.row + rowOffset,
-        column: i,
+        y: draftLocation.y + rowOffset,
+        x: i,
       });
       if (currChar === targetCharacter) {
-        draftLocation.column = i;
+        draftLocation.x = i;
         break;
       }
     }
@@ -127,145 +113,145 @@ function getInitialLocation({
 
 function handleHorizontalEdge(
   asciiGraphLines: Array<string>,
-  nodeAndLocations: Array<NodeAndLocation>,
-  startNodeAndLocation: NodeAndLocation
-): NodeAndLocation | null {
-  const startLocation = startNodeAndLocation.location;
+  nodes: Array<NodeWithName>,
+  startNode: NodeWithName
+): NodeWithName | null {
+  const startLocation = startNode.position;
   return handleEdge({
     asciiGraphLines,
-    nodeAndLocations,
+    nodes,
     startLocation: produce(startLocation, (draftLocation) => {
-      draftLocation.column += startNodeAndLocation.node.data.label.length - 1;
+      draftLocation.x += startNode.data.label.length - 1;
     }),
     expectedChar: "-",
-    iterateLocation: (loc: Location): Location =>
+    iterateLocation: (loc: XYPosition): XYPosition =>
       produce(loc, (draftLocation) => {
-        draftLocation.column++;
+        draftLocation.x++;
       }),
   });
 }
 
 function handleUpEdge(
   asciiGraphLines: Array<string>,
-  nodeAndLocations: Array<NodeAndLocation>,
-  startNodeAndLocation: NodeAndLocation
-): NodeAndLocation | null {
-  const startLocation = startNodeAndLocation.location;
-  if (startLocation.row === 0) {
+  nodes: Array<NodeWithName>,
+  startNode: NodeWithName
+): NodeWithName | null {
+  const startLocation = startNode.position;
+  if (startLocation.y === 0) {
     return null;
   }
   return handleEdge({
     asciiGraphLines,
-    nodeAndLocations,
+    nodes,
     startLocation: getInitialLocation({
       asciiGraphLines,
-      startNodeAndLocation,
+      startNode,
       rowOffset: -1,
       targetCharacter: "|",
     }),
     expectedChar: "|",
-    iterateLocation: (loc: Location): Location =>
+    iterateLocation: (loc: XYPosition): XYPosition =>
       produce(loc, (draftLocation) => {
-        draftLocation.row--;
+        draftLocation.y--;
       }),
   });
 }
 
 function handleDownEdge(
   asciiGraphLines: Array<string>,
-  nodeAndLocations: Array<NodeAndLocation>,
-  startNodeAndLocation: NodeAndLocation
-): NodeAndLocation | null {
-  const startLocation = startNodeAndLocation.location;
-  if (startLocation.row === asciiGraphLines.length - 1) {
+  nodes: Array<NodeWithName>,
+  startNode: NodeWithName
+): NodeWithName | null {
+  const startLocation = startNode.position;
+  if (startLocation.y === asciiGraphLines.length - 1) {
     return null;
   }
   return handleEdge({
     asciiGraphLines,
-    nodeAndLocations,
+    nodes,
     startLocation: getInitialLocation({
       asciiGraphLines,
-      startNodeAndLocation,
+      startNode,
       rowOffset: 1,
       targetCharacter: "|",
     }),
     expectedChar: "|",
-    iterateLocation: (loc: Location): Location =>
+    iterateLocation: (loc: XYPosition): XYPosition =>
       produce(loc, (draftLocation) => {
-        draftLocation.row++;
+        draftLocation.y++;
       }),
   });
 }
 
 function handleDiagUpEdge(
   asciiGraphLines: Array<string>,
-  nodeAndLocations: Array<NodeAndLocation>,
-  startNodeAndLocation: NodeAndLocation
-): NodeAndLocation | null {
-  const startLocation = startNodeAndLocation.location;
-  if (startLocation.row === 0) {
+  nodes: Array<NodeWithName>,
+  startNode: NodeWithName
+): NodeWithName | null {
+  const startLocation = startNode.position;
+  if (startLocation.y === 0) {
     return null;
   }
   const initialLocation = () => {
-    const location = getInitialLocation({
+    const position = getInitialLocation({
       asciiGraphLines,
-      startNodeAndLocation,
+      startNode,
       rowOffset: -1,
       targetCharacter: "/",
     });
     return {
-      ...location,
-      column: location.column - 1,
+      ...position,
+      x: position.x - 1,
     };
   };
   return handleEdge({
     asciiGraphLines,
-    nodeAndLocations,
+    nodes,
     startLocation: initialLocation(),
     expectedChar: "/",
-    iterateLocation: (loc: Location): Location =>
+    iterateLocation: (loc: XYPosition): XYPosition =>
       produce(loc, (draftLocation) => {
-        draftLocation.column++;
-        draftLocation.row--;
+        draftLocation.x++;
+        draftLocation.y--;
       }),
   });
 }
 
 function handleDiagDownEdge(
   asciiGraphLines: Array<string>,
-  nodeAndLocations: Array<NodeAndLocation>,
-  startNodeAndLocation: NodeAndLocation
-): NodeAndLocation | null {
+  nodes: Array<NodeWithName>,
+  startNode: NodeWithName
+): NodeWithName | null {
   const initialLocation = () => {
-    const location = getInitialLocation({
+    const position = getInitialLocation({
       asciiGraphLines,
-      startNodeAndLocation,
+      startNode,
       rowOffset: 1,
       targetCharacter: "\\",
     });
     return {
-      ...location,
-      column: location.column - 1,
+      ...position,
+      x: position.x - 1,
     };
   };
   return handleEdge({
     asciiGraphLines,
-    nodeAndLocations,
+    nodes,
     startLocation: initialLocation(),
     expectedChar: "\\",
-    iterateLocation: (loc: Location): Location =>
+    iterateLocation: (loc: XYPosition): XYPosition =>
       produce(loc, (draftLocation) => {
-        draftLocation.column++;
-        draftLocation.row++;
+        draftLocation.x++;
+        draftLocation.y++;
       }),
   });
 }
 
 function getAllEdges(
   asciiGraphLines: Array<string>,
-  startNodeAndLocation: NodeAndLocation,
-  nodeAndLocations: Array<NodeAndLocation>
-) {
+  startNode: NodeWithName,
+  nodes: Array<NodeWithName>
+): Array<Edge> {
   const nextNodeFns = [
     handleHorizontalEdge,
     handleUpEdge,
@@ -275,16 +261,12 @@ function getAllEdges(
   ];
   const edges: Array<Edge> = [];
   for (const nextNodeFn of nextNodeFns) {
-    const nextNode = nextNodeFn(
-      asciiGraphLines,
-      nodeAndLocations,
-      startNodeAndLocation
-    );
-    if (nextNode != null && nextNode.node.id !== startNodeAndLocation.node.id) {
+    const nextNode = nextNodeFn(asciiGraphLines, nodes, startNode);
+    if (nextNode != null && nextNode.id !== startNode.id) {
       edges.push({
         id: uuid.v4(),
-        source: startNodeAndLocation.node.id,
-        target: nextNode.node.id,
+        source: startNode.id,
+        target: nextNode.id,
         type: "smoothstep",
         markerEnd: {
           type: MarkerType.Arrow,
@@ -298,36 +280,31 @@ function getAllEdges(
 export default function convertAsciiGraph(asciiGraph: string): Graph {
   const lines = asciiGraph.split("\n");
   const nodesRegex = /\((\*)?\w+\)/g;
-  const nodeAndLocations: Array<NodeAndLocation> = [];
+  const nodes: Array<NodeWithName> = [];
   lines.forEach((line, rowIdx) => {
     const matches = line.matchAll(nodesRegex);
     for (const match of matches) {
-      const location = { row: rowIdx, column: match.index! };
-      nodeAndLocations.push({
-        node: {
-          id: uuid.v4(),
-          data: {
-            label: match[0],
-          },
-          position: { x: match.index!, y: rowIdx },
+      const position = { y: rowIdx, x: match.index! };
+      nodes.push({
+        id: uuid.v4(),
+        data: {
+          label: match[0],
         },
-        location,
+        position,
       });
     }
   });
 
-  const nodeAndLocationsById = nodeAndLocations.reduce((acc, curr) => {
-    acc[curr.node.id] = curr;
+  const nodesById = nodes.reduce((acc, curr) => {
+    acc[curr.id] = curr;
     return acc;
-  }, {} as { [id: string]: NodeAndLocation });
+  }, {} as { [id: string]: NodeWithName });
 
-  if (nodeAndLocations.length === 0) {
+  if (nodes.length === 0) {
     return { nodes: [], edges: [] };
   }
 
-  const startingNode = nodeAndLocations.find(({ node }) =>
-    node.data.label.startsWith("(*")
-  );
+  const startingNode = nodes.find(({ data }) => data.label.startsWith("(*"));
   if (startingNode == null) {
     console.warn(
       "Expected graph to have a starting node. Starting nodes begin with a '*' character."
@@ -335,7 +312,7 @@ export default function convertAsciiGraph(asciiGraph: string): Graph {
     return { nodes: [], edges: [] };
   }
 
-  const queue: Array<NodeAndLocation> = [startingNode];
+  const queue: Array<NodeWithName> = [startingNode];
   const visitedIds = new Set<string>();
   const edges: Array<Edge> = [];
   const edgeStrings: Set<string> = new Set();
@@ -344,7 +321,7 @@ export default function convertAsciiGraph(asciiGraph: string): Graph {
 
   while (queue.length > 0) {
     const curr = queue.splice(0, 1)[0];
-    const nodeEdges = getAllEdges(lines, curr, nodeAndLocations);
+    const nodeEdges = getAllEdges(lines, curr, nodes);
     for (const edge of nodeEdges) {
       const edgeString = makeEdgeString(edge);
       const reversedEdgeString = makeEdgeString({
@@ -358,14 +335,14 @@ export default function convertAsciiGraph(asciiGraph: string): Graph {
       edgeStrings.add(reversedEdgeString);
       edges.push(edge);
     }
-    visitedIds.add(curr.node.id);
+    visitedIds.add(curr.id);
     for (const nextEdge of nodeEdges) {
-      const nextNode = nodeAndLocationsById[nextEdge.target];
-      if (nextNode != null && !visitedIds.has(nextNode.node.id)) {
+      const nextNode = nodesById[nextEdge.target];
+      if (nextNode != null && !visitedIds.has(nextNode.id)) {
         queue.push(nextNode);
       }
     }
   }
 
-  return { nodes: nodeAndLocations.map(({ node }) => node), edges };
+  return { nodes, edges };
 }
