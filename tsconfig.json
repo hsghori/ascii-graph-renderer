@@ -1,0 +1,17 @@
+{
+    "compilerOptions": {
+      "target": "ES2015",
+      "module": "commonjs",
+      "jsx": "react",
+      "strict": true,
+      "esModuleInterop": true,
+      "skipLibCheck": true,
+      "forceConsistentCasingInFileNames": true
+    },
+    "include": [
+        "./src/**/*.ts",
+        "./src/**/*.tsx"
+    ],
+    "$schema": "https://json.schemastore.org/tsconfig",
+    "display": "Recommended"
+  }

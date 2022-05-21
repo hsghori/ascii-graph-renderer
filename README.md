@@ -1,3 +1,34 @@
+# Description
+
+Small webapp which converts an ASCII representation of a graph into a properly formatted graph.
+
+**Rules:**
+- Horizontal edges are represented with a `-` character (ascii: 45)
+- Vertical edges are represented with a `|` character (ascii: 124)
+- Diagonal-up edges are represented with a `\` character (ascii: 47)
+- Diagonal-down edges are represented with a `/` character (ascii: 92)
+- Nodes should match the regex `\((*)?\w+\)`. That is, the node must be surrounded by parenthesis, optionally be prefixed
+  with an asterisk, and (apart from the prefix) only contain "word" characters.
+- There may not be any edges between nodes and their inbound / outbound edges
+
+**Examples**:
+
+Input:
+
+```
+        (C)---(F)
+        /       \
+(*A)--(B)       (G)
+       \        /
+       (D)----(E)
+```
+
+Output:
+
+![Output graph](example-graph.png)
+
+---
+
 # Getting Started with Create React App
 
 This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
